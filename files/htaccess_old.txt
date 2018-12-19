@@ -1,0 +1,1868 @@
+#
+# Apache/PHP/Drupal settings:
+#
+
+# Protect files and directories from prying eyes.
+<FilesMatch "\.(engine|inc|info|install|make|module|profile|test|po|sh|.*sql|theme|tpl(\.php)?|xtmpl)(~|\.sw[op]|\.bak|\.orig|\.save)?$|^(\..*|Entries.*|Repository|Root|Tag|Template|composer\.(json|lock))$|^#.*#$|\.php(~|\.sw[op]|\.bak|\.orig\.save)$">
+  Order allow,deny
+</FilesMatch>
+
+# Don't show directory listings for URLs which map to a directory.
+Options -Indexes
+
+# Follow symbolic links in this directory.
+Options +FollowSymLinks
+
+# Make Drupal handle any 404 errors.
+ErrorDocument 404 /index.php
+
+# Set the default handler.
+DirectoryIndex index.php index.html index.htm
+
+# Override PHP settings that cannot be changed at runtime. See
+# sites/default/default.settings.php and drupal_environment_initialize() in
+# includes/bootstrap.inc for settings that can be changed at runtime.
+
+# PHP 5, Apache 1 and 2.
+<IfModule mod_php5.c>
+  php_flag magic_quotes_gpc                 off
+  php_flag magic_quotes_sybase              off
+  php_flag register_globals                 off
+  php_flag session.auto_start               off
+  php_value mbstring.http_input             pass
+  php_value mbstring.http_output            pass
+  php_flag mbstring.encoding_translation    off
+</IfModule>
+
+# Requires mod_expires to be enabled.
+<IfModule mod_expires.c>
+  # Enable expirations.
+  ExpiresActive On
+
+  # Cache all files for 2 weeks after access (A).
+  ExpiresDefault A1209600
+
+  <FilesMatch \.php$>
+    # Do not allow PHP scripts to be cached unless they explicitly send cache
+    # headers themselves. Otherwise all scripts would have to overwrite the
+    # headers set by mod_expires if they want another caching behavior. This may
+    # fail if an error occurs early in the bootstrap process, and it may cause
+    # problems if a non-Drupal PHP file is installed in a subdirectory.
+    ExpiresActive Off
+  </FilesMatch>
+</IfModule>
+
+# Qualys WAS Scan Report Issue 150122: Cookie Does Not Contain The "secure" Attribute
+# Allow Drupal to correctly identify incoming HTTPS requests so the "secure" attribute may be added to cookies
+<IfModule mod_setenvif.c>
+  SetEnvIf X-Forwarded-Proto https HTTPS=on
+</IfModule>
+
+# Various rewrite rules.
+<IfModule mod_rewrite.c>
+  RewriteEngine on
+
+  # Set "protossl" to "s" if we were accessed via https://.  This is used later
+  # if you enable "www." stripping or enforcement, in order to ensure that
+  # you don't bounce between http and https.
+  RewriteRule ^ - [E=protossl]
+  RewriteCond %{HTTPS} on
+  RewriteRule ^ - [E=protossl:s]
+
+  # Make sure Authorization HTTP header is available to PHP
+  # even when running as CGI or FastCGI.
+  RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  # Block access to "hidden" directories whose names begin with a period. This
+  # includes directories used by version control systems such as Subversion or
+  # Git to store control files. Files whose names begin with a period, as well
+  # as the control files used by CVS, are protected by the FilesMatch directive
+  # above.
+  #
+  # NOTE: This only works when mod_rewrite is loaded. Without mod_rewrite, it is
+  # not possible to block access to entire directories from .htaccess, because
+  # <DirectoryMatch> is not allowed here.
+  #
+  # If you do not have mod_rewrite installed, you should remove these
+  # directories from your webroot or otherwise protect them from being
+  # downloaded.
+  RewriteRule "(^|/)\." - [F]
+
+  # If your site can be accessed both with and without the 'www.' prefix, you
+  # can use one of the following settings to redirect users to your preferred
+  # URL, either WITH or WITHOUT the 'www.' prefix. Choose ONLY one option:
+  #
+  # To redirect all users to access the site WITH the 'www.' prefix,
+  # (https://example.com/... will be redirected to https://www.example.com/...)
+  # uncomment the following:
+  # RewriteCond %{HTTP_HOST} .
+  # RewriteCond %{HTTP_HOST} !^www\. [NC]
+  # RewriteRule ^ http%{ENV:protossl}://www.%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  #
+  # To redirect all users to access the site WITHOUT the 'www.' prefix,
+  # (https://www.example.com/... will be redirected to https://example.com/...)
+  # uncomment the following:
+  # RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  # RewriteRule ^ http%{ENV:protossl}://%1%{REQUEST_URI} [L,R=301]
+
+  ######## Generic rule for prod https/http redirects
+  RewriteCond %{HTTP_HOST} ^.*.jnjnab12d3-prod\.jjc-devops\.com$      [NC]
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1               [R=permanent,L]
+
+  # Visine US site.
+  # Custom redirects.
+  RewriteCond %{HTTP_HOST} ^(www\.)?visineviewingpleasure\.com$                [NC]
+  RewriteCond %{REQUEST_URI} ^/eye-conditions$                                 [NC]
+  RewriteRule ^/?(.*)$ https://www.visine.com/eye-condition-symptoms [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?visineviewingpleasure\.com$   [NC]
+  RewriteCond %{REQUEST_URI} ^/products$                          [NC]
+  RewriteRule ^/?(.*)$ https://www.visine.com/eye-drops [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?visineviewingpleasure\.com$ [NC]
+  RewriteRule ^/?(.*)$ https://www.visine.com/        [R=permanent,L]
+
+  # Redirect all users to access the site with 'www.' prefix for
+  RewriteCond %{HTTP_HOST} ^(m\.)?visine\.com$                      [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?visinesoothingwipes\.com$       [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?visinetotaleye\.com$               [NC]
+  RewriteRule ^/?(.*)$ https://www.visine.com/$1             [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(edit-)?con-na-us-visine-com-prodstage\.jjconsumer\.com$  [NC,OR]
+  RewriteCond %{HTTP_HOST} ^((www|edit|m)\.)?visine\.com$                                [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                                [R=permanent,L]
+
+  # Redirects for Imodium site.
+  RewriteCond %{HTTP_HOST} ^(m\.)?imodium\.com$                   [NC]
+  RewriteRule ^(.*)$ https://www.imodium.com/$1         [R=permanent,L]
+
+  # Imodium US - Force HTTPS Stage.
+  RewriteCond %{HTTP_HOST} ^(edit-)?con-na-us-imodium-com-prodstage\.jjconsumer\.com$   [NC,OR]
+  RewriteCond %{HTTP_HOST} ^((m|www|edit)\.)?imodium\.com$                                 [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                                  [R=permanent,L]
+
+  # Redirects for CLEAN & CLEAR site.
+  RewriteCond %{HTTP_HOST} ^(m\.)?cleanandclear\.com                            [NC,OR]
+  RewriteCond %{HTTP_HOST} ^morningburst\.com                                   [NC,OR]
+  RewriteCond %{HTTP_HOST} ^shopcleanandclear\.com                              [NC,OR]
+  RewriteCond %{HTTP_HOST} ^www\.morningburst\.com                              [NC,OR]
+  RewriteCond %{HTTP_HOST} ^www\.shopcleanandclear\.com                         [NC]
+  RewriteRule ^/?(.*)$ https://www.cleanandclear.com/$1                          [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-3-1-exfoliating-cleanser$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=86$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/buy-online-advantage-3-1-foaming-acne-wash$      [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=81$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-acne-cleanser$              [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=36$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-acne-control-acne-control-moisturizer$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=61$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-acne-control-kit$           [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=66$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-acne-spot-treatment$        [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=56$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-daily-soothing-acne-scrub$  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=26$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-daily-soothing-acne-wash$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=31$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-mark-treatment$             [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=71$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-oil-absorbing-cream-cleanser$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=91$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-popped-pimple-relief-drying-paste$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=76$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-blackhead-eraser-cleansing-mask$      [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=196$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-blackhead-eraser-scrub$               [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=186$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-continuous-control-cleanser$          [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=146$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-daily-pore-cleanser$                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=101$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-deep-action-cream-cleanser$           [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=106$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-deep-action-cream-cleanser-sensitive-skin$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=151$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-deep-action-exfoliating-scrub$        [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=161$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-detoxifying-facial-cleanser$          [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=121$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-essentials-deep-cleaning-astringent$  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=211$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-essentials-deep-cleaning-toner-sensitive-skin$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=216$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-essentials-dual-action-moisturizer$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=206$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-essentials-foaming-facial-cleanser$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=111$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-essentials-foaming-facial-sensitive-skin$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=156$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-essentials-skin-care-routine$         [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=231$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-for-Night-Relaxing-Face-Wash$         [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=301$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-makeup-dissolving-cleansing-facial-cleansing-wipes$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=141$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-boost-body-wash$        [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=221$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-detoxifying-facial-scrub$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=171$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-facial-cleanser$        [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=131$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-facial-scrub$           [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=176$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-fruit-infusions-smoothing-facial-scrub$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=46$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-hydrading-facial-cleanser$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=16$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-hydrating-gel-moisturizer$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=21$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-shine-control-cleanser$ [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=126$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-shine-control-facial-scrub$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=181$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-skin-brightening-facial-cleanser$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=136$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-morning-burst-skin-brightening-facial-scrub$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=166$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-night-relaxing-all-one-face-wipes$    [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=296$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-oil-absorbing-sheets$                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=201$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-persa-gel-acne-medication$            [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=191$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/acne-treatments/advantage-acne-control-kit$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-control-kit? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-control-kit [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/acne-treatments/advantage-acne-spot-treatment$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-spot-treatment? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-spot-treatment [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/acne-treatments/advantage-mark-treatment$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-mark-treatment? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-mark-treatment [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/acne-treatments/advantage-popped-pimple-relief-drying-paste$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/acne-treatments/blackhead-eraser-cleansing-mask$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/blackhead-eraser-cleansing-mask? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/blackhead-eraser-cleansing-mask [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/acne-treatments/persa-gel-10-acne-medication$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/persa-gel-10-benzoyl-peroxide-acne-medication? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/persa-gel-10-benzoyl-peroxide-acne-medication [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/astringents-toners/essentials-deep-cleaning-astringent$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-astringent? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-astringent [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/astringents-toners/essentials-deep-cleaning-toner-sensitive-skin$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-toner-sensitive-skin? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-toner-sensitive-skin [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/blotting-papers/oil-absorbing-sheets$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/blotting-papers/clean-clear-oil-absorbing-sheets? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/blotting-papers/clean-clear-oil-absorbing-sheets [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/body-washes/morning-burst-boost-body-wash$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/body-washes/morning-burst-boost-body-wash? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/body-washes/morning-burst-boost-body-wash [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/advantage-3-1-exfoliating-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-exfoliating-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-exfoliating-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/advantage-3-1-foaming-acne-wash$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-foaming-acne-wash? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-foaming-acne-wash [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/advantage-acne-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/advantage-daily-soothing-acne-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/advantage-oil-absorbing-cream-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-oil-absorbing-cream-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-oil-absorbing-cream-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/continuous-control-acne-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/continuous-control-acne-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/continuous-control-acne-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/daily-pore-cleanser$     [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/daily-pore-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/daily-pore-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/deep-action-cream-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/deep-action-cream-cleanser-sensitive-skin$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser-sensitive-skin? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser-sensitive-skin [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/essentials-foaming-facial-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/essentials-foaming-facial-cleanser-sensitive-skin$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser-sensitive-skin? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser-sensitive-skin [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/makeup-dissolving-facial-cleansing-wipes$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/makeup-dissolving-facial-cleansing-wipes? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/makeup-dissolving-facial-cleansing-wipes [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/morning-burst-detoxifying-facial-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-detoxifying-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-detoxifying-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/morning-burst-facial-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/morning-burst-hydrating-facial-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-hydrating-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-hydrating-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/morning-burst-shine-control-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-shine-control-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-shine-control-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/morning-burst-skin-brightening-facial-cleanser$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-skin-brightening-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-skin-brightening-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/night-relaxing-all-one-cleansing-wipes$  [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-cleansing-wipes? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-cleansing-wipes [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/cleansers/night-relaxing-deep-cleaning-face-wash$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-deep-cleansing-face-wash? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-deep-cleansing-face-wash [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/moisturizers/advantage-acne-control-moisturizer$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/advantage-acne-control-moisturizer? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/advantage-acne-control-moisturizer [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/moisturizers/essentials-dual-action-moisturizer$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/essentials-dual-action-moisturizer? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/essentials-dual-action-moisturizer [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/moisturizers/morning-burst-hydrating-gel-moisturizer$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/morning-burst-hydrating-gel-moisturizer? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/morning-burst-hydrating-gel-moisturizer [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/product-line/advantage$            [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/product-line/essentials$           [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/product-line/greatest-hits$        [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/product-line/morning-burst$        [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/routines/essentials-skin-care-routine$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/scrubs/advantage-daily-soothing-acne-scrub$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/scrubs/blackhead-eraser-scrub$     [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/blackhead-eraser-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/blackhead-eraser-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/scrubs/deep-action-exfoliating-scrub$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/deep-action-exfoliating-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/deep-action-exfoliating-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/scrubs/morning-burst-detoxifying-facial-scrub$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-detoxifying-facial-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-detoxifying-facial-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/scrubs/morning-burst-facial-scrub$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-facial-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-facial-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/scrubs/morning-burst-fruit-infusions-smoothing-facial-scrub$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/scrubs/morning-burst-shine-control-facial-scrub$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-shine-control-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-shine-control-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/mail-share$                                      [NC]
+  RewriteCond %{QUERY_STRING} ^path=products/scrubs/morning-burst-skin-brightening-facial-scrub$ [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-skin-brightening-facial-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-skin-brightening-facial-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=101$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/daily-pore-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/daily-pore-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=106$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser-sensitive-skin? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser-sensitive-skin [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=111$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=121$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-detoxifying-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-detoxifying-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=126$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-shine-control-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-shine-control-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=131$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=136$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-skin-brightening-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-skin-brightening-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=141$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/makeup-dissolving-facial-cleansing-wipes? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/makeup-dissolving-facial-cleansing-wipes [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=146$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/continuous-control-acne-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/continuous-control-acne-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=151$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser-sensitive-skin? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser-sensitive-skin [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=156$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser-sensitive-skin? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser-sensitive-skin [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=16$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-hydrating-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-hydrating-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=161$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/deep-action-exfoliating-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/deep-action-exfoliating-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=166$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-skin-brightening-facial-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-skin-brightening-facial-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=171$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-detoxifying-facial-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-detoxifying-facial-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=176$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-facial-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-facial-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=181$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-shine-control-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-shine-control-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=186$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/blackhead-eraser-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/blackhead-eraser-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=191$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/persa-gel-10-benzoyl-peroxide-acne-medication? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/persa-gel-10-benzoyl-peroxide-acne-medication [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=196$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/blackhead-eraser-cleansing-mask? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/blackhead-eraser-cleansing-mask [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=201$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/blotting-papers/clean-clear-oil-absorbing-sheets? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/blotting-papers/clean-clear-oil-absorbing-sheets [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=206$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/essentials-dual-action-moisturizer? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/essentials-dual-action-moisturizer [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=21$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/morning-burst-hydrating-gel-moisturizer? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/morning-burst-hydrating-gel-moisturizer [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=211$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-astringent? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-astringent [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=216$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-toner-sensitive-skin? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-toner-sensitive-skin [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=221$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/body-washes/morning-burst-boost-body-wash? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/body-washes/morning-burst-boost-body-wash [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=231$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/skin-care-routines/essentials-skin-care-routine? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/skin-care-routines/essentials-skin-care-routine [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=26$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=296$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-cleansing-wipes? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-cleansing-wipes [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=301$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-deep-cleansing-face-wash? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-deep-cleansing-face-wash [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=31$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=36$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=46$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=56$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-spot-treatment? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-spot-treatment [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=61$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/advantage-acne-control-moisturizer? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/advantage-acne-control-moisturizer [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=66$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-control-kit? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-control-kit [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=71$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-mark-treatment? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-mark-treatment [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=76$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=81$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-foaming-acne-wash? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-foaming-acne-wash [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=86$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-exfoliating-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-exfoliating-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/product-reviews$                                 [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=91$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-oil-absorbing-cream-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-oil-absorbing-cream-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=101$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/daily-pore-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/daily-pore-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=106$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/deep-action-exfoliating-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/deep-action-exfoliating-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=111$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=121$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-detoxifying-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-detoxifying-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=126$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-shine-control-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-shine-control-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=131$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=136$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-skin-brightening-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-skin-brightening-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=141$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/makeup-dissolving-facial-cleansing-wipes? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/makeup-dissolving-facial-cleansing-wipes [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=146$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/continuous-control-acne-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/continuous-control-acne-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=151$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/deep-action-cream-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=156$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser-sensitive-skin? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/essentials-foaming-facial-cleanser-sensitive-skin [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=16$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-hydrating-facial-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/morning-burst-hydrating-facial-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=161$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/deep-action-exfoliating-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/deep-action-exfoliating-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=166$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-skin-brightening-facial-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-skin-brightening-facial-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=171$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-detoxifying-facial-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-detoxifying-facial-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=176$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-facial-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-facial-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=181$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-shine-control-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/morning-burst-shine-control-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=186$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/blackhead-eraser-scrub? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-scrubs/blackhead-eraser-scrub [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=191$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/persa-gel-10-benzoyl-peroxide-acne-medication? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/persa-gel-10-benzoyl-peroxide-acne-medication [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=196$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/blackhead-eraser-cleansing-mask? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/blackhead-eraser-cleansing-mask [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=201$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/blotting-papers/clean-clear-oil-absorbing-sheets? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/blotting-papers/clean-clear-oil-absorbing-sheets [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=206$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/essentials-dual-action-moisturizer? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/essentials-dual-action-moisturizer [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=21$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/morning-burst-hydrating-gel-moisturizer? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/morning-burst-hydrating-gel-moisturizer [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=211$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-astringent? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-astringent [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=216$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-toner-sensitive-skin? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/astringents-toners/essentials-deep-cleaning-toner-sensitive-skin [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=221$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/body-washes/morning-burst-boost-body-wash? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/body-washes/morning-burst-boost-body-wash [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=26$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=296$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-cleansing-wipes? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-cleansing-wipes [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=301$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-deep-cleansing-face-wash? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/night-relaxing-deep-cleansing-face-wash [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=31$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=36$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=46$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=56$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-spot-treatment? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-spot-treatment [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=61$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/advantage-acne-control-moisturizer? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/moisturizers/advantage-acne-control-moisturizer [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=66$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-control-kit? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-acne-control-kit [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=71$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-mark-treatment? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/acne-treatments/advantage-mark-treatment [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=76$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/products?                    [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/products                    [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=81$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-foaming-acne-wash? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-foaming-acne-wash [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=86$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-exfoliating-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-3-in-1-exfoliating-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/write-a-review$                                  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=91$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-oil-absorbing-cream-cleanser? [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/facial-cleansers/advantage-oil-absorbing-cream-cleanser [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-3-1-exfoliating-cleanser$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=86$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/buy-online-advantage-3-1-foaming-acne-wash$      [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=81$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-acne-cleanser$              [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=36$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-acne-control-kit$           [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=66$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-acne-spot-treatment$        [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=56$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-daily-soothing-acne-scrub$  [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=26$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-daily-soothing-acne-wash$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=31$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-mark-treatment$             [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=71$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-acne-control-acne-control-moisturizer$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=61$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-oil-absorbing-cream-cleanser$ [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=91$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-advantage-popped-pimple-relief-drying-paste$   [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=76$                                       [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?cleanandclear\.com                          [NC]
+  RewriteCond %{REQUEST_URI} ^/Buy-online-blackhead-eraser-cleansing-mask$      [NC]
+  RewriteCond %{QUERY_STRING} ^pageid=196$                                      [NC]
+  #Apache 2.2 discard query string method
+  RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy?                [R=permanent,L]
+  #Apache 2.4 discard query string method
+  #RewriteRule ^/?(.*) https://www.cleanandclear.com/where-to-buy                [QSD,R=permanent,L]
+
+  # Clean and Clear US
+  RewriteCond %{HTTP_HOST} ^(edit-)?con-na-cnc-us-dev-gfo2\.jjconsumer\.com               [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(edit-)?con-cnc-us.gfo2-na-dev\.jjconsumer\.com               [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(edit-)?con-cnc-us.gfo2-na-stage\.jjconsumer\.com             [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(edit-)?con-cnc-us.gfo2-na-prod\.jjconsumer\.com              [NC,OR]
+  RewriteCond %{HTTP_HOST} ^((m|www|edit)\.)?cleanandclear\.com                           [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                                            [R=permanent,L]
+
+  # JOHNSONSBABY US.
+  RewriteCond %{HTTP_HOST} ^(m\.)?johnsonsbaby\.com$              [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?babycause\.com$               [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?babypowder\.com$              [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?johnsonsbuddies\.com$         [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?nomoretears\.com$             [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?celebratinggrandparents\.com$ [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?johnsonsforyou\.com$          [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?johnsonsnaturals\.com$        [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?johnsonsnatural\.com$         [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?johnsonbuddies\.com$          [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?johnsonssecret\.com$          [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?johnsonskids\.com$            [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?johnsonswomen\.com$           [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?nomoretugging\.com$           [NC,OR]
+  RewriteCond %{HTTP_HOST} ^((www|m)\.)?petiteplanet\.com$        [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?soothingnaturals\.com$        [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?share\.johnsonsbaby\.com$     [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?babyshampoo\.com$                [NC]
+  RewriteRule ^/?(.*)$ https://www.johnsonsbaby.com/$1     [R=permanent,L]
+  # Sleep redirects.
+  RewriteCond %{HTTP_HOST} ^(www\.)?bedtimeclassics\.com$         [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?bedtimeclassic\.com$          [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?sleep\.johnsonsbaby\.com$        [NC]
+  RewriteRule ^ https://www.johnsonsbaby.com/sleep         [R=permanent,L]
+  # Bath time redirects.
+  RewriteCond %{HTTP_HOST} ^(www\.)?bath\.johnsonsbaby\.com$         [NC]
+  RewriteRule ^ https://www.johnsonsbaby.com/bathtime      [R=permanent,L]
+
+  # Force HTTPS.
+  RewriteCond %{HTTP_HOST} ^((www|edit|m)\.)?johnsonsbaby\.com$                       [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                             [R=permanent,L]
+
+  # Condition to rewrite google file verification file
+  RewriteCond %{HTTP_HOST} ^(www\.)?johnsonsbaby\.com$                                   [NC]
+  RewriteCond %{REQUEST_URI} ^/googlea33192f009a443c4.html$                              [NC]
+  RewriteRule ^/?(.*)$ /sites/jbaby_us/files/googlea33192f009a443c4.html                  [L]
+
+  # Aveeno US URL Redirect
+  RewriteCond %{HTTP_HOST} ^aveeno\.com$                        [NC]
+  RewriteRule ^/?(.*)$ https://www.aveeno.com/$1                [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^((www|edit)\.)?aveeno\.com$       [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                     [R=permanent,L]
+
+  # Redirects for RHINOCORT US site.
+  RewriteCond %{HTTP_HOST} ^(m\.)?rhinocort\.com                [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?rhinocort\.net              [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?rhinocort\.org              [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?rhinocort\.info                [NC]
+  RewriteRule ^/?(.*)$ https://www.rhinocort.com/$1      [R=permanent,L]
+
+  # RHINOCORT US - Force HTTPS Stage.
+  RewriteCond %{HTTP_HOST} ^((m|www|edit)\.)?rhinocort\.com$                                 [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                                    [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?rhinocortrebate\.com$                                                                           [NC]
+  RewriteRule ^/?(.*)$ sites/rhinocort_us/files/u16an-a1606-42-rhinur-dfsi-nat_mail_in_certificate_actualsize_ri.ct_version.pdf         [L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?tryrhinocortfreerebate\.com$                                                                    [NC]
+  RewriteRule ^/?(.*)$ sites/rhinocort_us/files/u16an-a1606-42-rhinur-dfsi-nat_mail_in_certificate_actualsize_national_version.pdf      [L]
+
+  ######## J&J Reachfloss US redirects
+  RewriteCond %{HTTP_HOST} ^reachfloss\.com$                     [NC]
+  RewriteRule ^/?(.*)$ https://www.reachfloss.com/$1   [R=permanent,L]
+
+  # Reachfloss US HTTPS redirect
+  RewriteCond %{HTTP_HOST} ^(edit-)?con-na-us-reachfloss-com-prodstage\.jjconsumer\.com$ [NC,OR]
+  RewriteCond %{HTTP_HOST} ^((edit|www)\.)?reachfloss\.com$                                 [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                                   [R=permanent,L]
+
+  ######## OneTouch US redirects
+  RewriteCond %{HTTP_HOST} ^(m\.)?onetouch\.com                    [NC]
+  RewriteRule ^/?(.*)$ https://www.onetouch.com/$1                 [R=permanent,L]
+
+  # OneTouch US Offers redirects
+
+	RewriteCond %{HTTP_HOST} ^(www\.)?verioflexsupport\.com [NC]
+	RewriteRule ^(.*)$ https://www.onetouch.com/products/glucose-meters/onetouch-verio-flex?utm_source=OTVF-TrnVideos&utm_medium=media&utm_campaign=OTVerioFlexLaunch$1 [R=permanent,L]
+
+	RewriteCond %{HTTP_HOST} ^(www\.)?getverioflex\.com [NC]
+	RewriteRule ^(.*)$ https://www.onetouch.com/offers?utm_source=Dig-30a-OTVF-Video-YT&utm_medium=media&utm_campaign=OTVerioFlexLaunch$1 [R=permanent,L]
+
+	RewriteCond %{HTTP_HOST} ^(www\.)?tryverioflex\.com [NC]
+	RewriteRule ^(.*)$ https://www.onetouch.com/offers?utm_source=Dig-30b-OTVF-Video-YT&utm_medium=media&utm_campaign=OTVerioFlexLaunch$1 [R=permanent,L]
+
+	RewriteCond %{HTTP_HOST} ^(www\.)?verioflexoffer\.com [NC]
+	RewriteRule ^(.*)$ https://www.onetouch.com/offers?utm_source=Dig-30c-OTVF-Video-YT&utm_medium=media&utm_campaign=OTVerioFlexLaunch$1 [R=permanent,L]
+
+	RewriteCond %{HTTP_HOST} ^(www\.)?verioflexsavings\.com [NC]
+	RewriteRule ^(.*)$ https://www.onetouch.com/offers?utm_source=Dig-LMOA-OTVF-Video-YT&utm_medium=media&utm_campaign=OTVerioFlexLaunch$1 [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?myverioflex\.com [NC]
+  RewriteCond %{REQUEST_URI} ^/colorsure$            [NC]
+  RewriteRule ^(.*)$ https://www.onetouch.com/offers?utm_source=Q4-2018-Video-Test&utm_medium=localTV&utm_campaign=Q4VideoTest&utm_content=PerryColorSure [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?myverioflex\.com [NC]
+  RewriteCond %{REQUEST_URI} ^/connect$              [NC]
+  RewriteRule ^(.*)$ https://www.onetouch.com/offers?utm_source=Q4-2018-Video-Test&utm_medium=localTV&utm_campaign=Q4VideoTest&utm_content=PerryOTVFandOTR [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?myverioflex\.com [NC]
+  RewriteCond %{REQUEST_URI} ^/reveal$               [NC]
+  RewriteRule ^(.*)$ https://www.onetouch.com/offers?utm_source=Q4-2018-Video-Test&utm_medium=localTV&utm_campaign=Q4VideoTest&utm_content=PerryFavOTRFeature [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?myverioflex\.com [NC]
+  RewriteCond %{REQUEST_URI} ^/green$                [NC]
+  RewriteRule ^(.*)$ https://www.onetouch.com/offers?utm_source=Q4-2018-Video-Test&utm_medium=localTV&utm_campaign=Q4VideoTest&utm_content=TrevorColorSure [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?myverioflex\.com [NC]
+  RewriteRule ^(.*)$ https://www.onetouch.com [R=permanent,L]
+
+  # OneTouch US Global redirects
+  RewriteCond %{HTTP_HOST} ^(www\.)?onetouchla\.com$                [NC,OR]
+  RewriteCond %{HTTP_HOST} ^((fr|it|www)\.)?onetouch\.ch$           [NC,OR]
+  RewriteCond %{HTTP_HOST} ^((fr|it|www)\.)?lifescan\.ch$           [NC]
+  RewriteRule ^/?(.*)$ https://www.onetouch.com/global              [R=permanent,L]
+
+  # Onetouch.com rules
+  RewriteCond %{HTTP_HOST} ^((www|edit|m)\.)?onetouch\.com$                [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                            [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?es\.onetouch\.com$ [NC]
+  RewriteRule ^(.*)$ https://www.onetouch.com/$1 [R=permanent,L]
+
+  # LISTERINE US.
+  RewriteCond %{HTTP_HOST} ^(m\.)?listerine\.com$                       [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?yourmouthhassomethingtosay\.com$    [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?listerinespecialoffer\.com$         [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?thisisyourmouth\.com$               [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?listerine\.net$                     [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?thepearlsofwisdom\.com$             [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?wheredoyouwhiten\.com$              [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?listerinewhiteningrinse\.com$       [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?thinkyouknowclean\.com$             [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?listermint\.com$                       [NC]
+  RewriteRule ^/?(.*) https://www.listerine.com/$1               [R=permanent,L]
+
+  # Force HTTPS.
+  RewriteCond %{HTTP_HOST} ^((www|edit|m)\.)?listerine\.com$               [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                  [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?listerinezero\.com$                                                    [NC]
+  RewriteRule ^/?(.*)$ https://www.listerine.com/?utm_source=DRTV&utm_medium=TV&utm_campaign=zero2010  [L,R=301]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?listerinetotalcare\.com$                                                           [NC]
+  RewriteRule ^/?(.*)$ https://www.listerine.com/?utm_source=magazine&utm_medium=print&utm_campaign=totalcare2010  [L,R=301]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?purplemouthwash\.com$                                                           [NC]
+  RewriteRule ^/?(.*)$ https://www.listerine.com/?utm_source=magazine&utm_medium=print&utm_campaign=purple2010  [L,R=301]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?listerinekids\.com$                                                  [NC]
+  RewriteRule ^/?(.*)$ https://www.listerine.com/mouthwash/for-kids/listerine-smart-rinse-mouthwash  [L,R=301]
+
+  RewriteCond %{HTTP_HOST} ^(www\.)?listerinewhitening\.com                                                [NC]
+  RewriteRule ^/?(.*)$ https://www.listerine.com/mouthwash/whitening/listerine-healthy-white-mouthwash [L,R=301]
+
+  ### J&J Benadryl US site.
+  RewriteCond %{HTTP_HOST} ^(m\.)?benadryl\.com$                                          [NC,OR]
+  RewriteCond %{HTTP_HOST} ^(www\.)?benadrylsummerpromo\.com$                             [NC]
+  RewriteRule ^/?(.*)$ https://www.benadryl.com/$1                              [R=permanent,L]
+
+  # Force HTTPS
+  RewriteCond %{HTTP_HOST} ^((m|www|edit)\.)?benadryl\.com$                               [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)/?$ https://%{HTTP_HOST}/$1                               [R=permanent,L]
+
+  # WWW.SAFETYANDCARECOMMITMENT.COM redirect.
+  RewriteCond %{HTTP_HOST} ^(www\.)?careandsafetycommitment.com$                        [NC,OR]
+  RewriteCond %{HTTP_HOST} ^((fr|de|el|il|id|it|ja|ru|th|tr)\.)?safetyandcarecommitment\.com$                    [NC]
+  RewriteRule ^/?(.*)$ https://www.safetyandcarecommitment.com/$1                       [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^(edit-)?con-na-us-scc-com-prodstage\.jjconsumer\.com$            [NC,OR]
+  RewriteCond %{HTTP_HOST} ^((m|www|edit)\.)?safetyandcarecommitment\.com$                      [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                                       [R=permanent,L]
+
+  # My Cataract Solution URL
+  RewriteCond %{HTTP_HOST} ^mycataractsolution\.com$                        [NC]
+  RewriteRule ^/?(.*)$ https://www.mycataractsolution.com/$1                [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^((www|edit|m)\.)?mycataractsolution\.com$       [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                     [R=permanent,L]
+
+  # Just Blink US.
+  RewriteCond %{HTTP_HOST} ^(m\.)?justblink\.com$                [NC]
+  RewriteRule ^/?(.*) https://www.justblink.com/$1               [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^((www|edit)\.)?justblink\.com$       [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                   [R=permanent,L]
+
+  # Just BackInFocus US.
+  RewriteCond %{HTTP_HOST} ^(m\.)?backinfocus\.com$              [NC]
+  RewriteRule ^/?(.*) https://www.backinfocus.com/$1             [R=permanent,L]
+
+  RewriteCond %{HTTP_HOST} ^((www|edit)\.)?backinfocus\.com$     [NC]
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^/?(.*)$ https://%{HTTP_HOST}/$1                   [R=permanent,L]
+
+  # Protect dangerous Drupal files from access over the internet.
+  # NOTE: additional files covered by FilesMatch directive at top
+  RewriteRule (^|/)(CHANGELOG|INSTALL(\..+)?|LICENSE|MAINTAINERS|README|UPGRADE|COPYRIGHT)\.txt/?$ - [NC,F]
+  RewriteRule ^/?(authorize|install|update)\.php/?$ -                                      [NC,F]
+
+  # Pass all requests not referring directly to files in the filesystem to
+  # index.php. Clean URLs are handled in drupal_environment_initialize().
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_URI} !=/favicon.ico
+  RewriteRule ^ index.php [L]
+
+  # Rules to correctly serve gzip compressed CSS and JS files.
+  # Requires both mod_rewrite and mod_headers to be enabled.
+  <IfModule mod_headers.c>
+    # Serve gzip compressed CSS files if they exist and the client accepts gzip.
+    RewriteCond %{HTTP:Accept-encoding} gzip
+    RewriteCond %{REQUEST_FILENAME}\.gz -s
+    RewriteRule ^(.*)\.css $1\.css\.gz [QSA]
+
+    # Serve gzip compressed JS files if they exist and the client accepts gzip.
+    RewriteCond %{HTTP:Accept-encoding} gzip
+    RewriteCond %{REQUEST_FILENAME}\.gz -s
+    RewriteRule ^(.*)\.js $1\.js\.gz [QSA]
+
+    # Serve correct content types, and prevent mod_deflate double gzip.
+    RewriteRule \.css\.gz$ - [T=text/css,E=no-gzip:1]
+    RewriteRule \.js\.gz$ - [T=text/javascript,E=no-gzip:1]
+
+    <FilesMatch "(\.js\.gz|\.css\.gz)$">
+      # Serve correct encoding type.
+      Header set Content-Encoding gzip
+      # Force proxies to cache gzipped & non-gzipped css/js files separately.
+      Header append Vary Accept-Encoding
+    </FilesMatch>
+  </IfModule>
+</IfModule>
+
+# Add headers to all responses.
+<IfModule mod_headers.c>
+  # Disable content sniffing, since it's an attack vector.
+  Header always set X-Content-Type-Options nosniff
+</IfModule>
+
+<IfModule mod_headers.c>
+ <IfModule mod_rewrite.c>
+    <FilesMatch ".(eot|svg|ttf|woff|woff2?)$">
+      SetEnvIf Origin "http(s)?://(.+\.)?(force\.com|ccc\-consumercarecenter\.com|es\.aveeno\.com)(:\d{1,5})?$" CORS=$0
+      Header set Access-Control-Allow-Origin "%{CORS}e" env=CORS
+    </FilesMatch>
+ </IfModule>
+</IfModule>
