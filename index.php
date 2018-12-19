@@ -39,8 +39,8 @@ if (!empty($matches)) {
 
   $old_htaccess_draft_file = 'files/old_htaccess_draft.txt';
   $new_htaccess_draft_file = 'files/new_htaccess_draft.txt';
-  unlink($old_htaccess_draft);
-  unlink($new_htaccess_draft);
+  unlink($old_htaccess_draft_file);
+  unlink($new_htaccess_draft_file);
   file_put_contents($old_htaccess_draft_file, $old_htaccess_draft);
   file_put_contents($new_htaccess_draft_file, $new_htaccess_draft);
 }
